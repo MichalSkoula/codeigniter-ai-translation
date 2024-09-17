@@ -31,6 +31,9 @@ echo "Translation process completed." . PHP_EOL;
 echo "Total files processed: " . $result->getProcessed() . PHP_EOL;
 echo "Total items translated: " . $result->getTranslated() . PHP_EOL;
 echo "Total items failed: " . $result->getFailed() . PHP_EOL;
+if ($result->isError()) {
+    echo 'Error: ' . $result->getErrorMessage() . PHP_EOL;
+}
 ```
 
 ## Links
