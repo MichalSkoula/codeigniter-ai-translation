@@ -14,13 +14,14 @@ class Translator
 
     private string $model = 'claude-3-5-sonnet-20240620';
 
-    private string $file;
+    private ?string $file;
 
     public function __construct(
         string $apiKey,
         private readonly string $sourceLang,
         private readonly string $targetLang,
-        string $dir
+        string $dir,
+        private readonly int $version = 3,
     ) {
         $this->client = Anthropic::client($apiKey);
         $this->sourceDir = $dir . '/' . $sourceLang;
@@ -52,8 +53,8 @@ class Translator
             } else {
                 // Process all PHP files in the source directory
                 foreach (glob(sprintf('%s/*.php', $this->sourceDir)) as $sourceFile) {
-                    $filename = basename($sourceFile);
-                    $targetFile = sprintf('%s/%s', $this->targetDir, $filename);
+                    $this->file = pathinfo($sourceFile, PATHINFO_FILENAME);
+                    $this->file = str_replace('_lang', '', $this->file);
                     $result = $this->translateMissingItems();
                     ++$processed;
                     $translated += $result['translated'];
@@ -69,12 +70,14 @@ class Translator
 
     private function getSourceFile(): string
     {
-        return sprintf('%s/%s_lang.php', $this->sourceDir, $this->file);
+        $suffix = $this->version == 3 ? '_lang' : '';
+        return sprintf('%s/%s%s.php', $this->sourceDir, $this->file, $suffix);
     }
 
     private function getTargetFile(): string
     {
-        return sprintf('%s/%s_lang.php', $this->targetDir, $this->file);
+        $suffix = $this->version == 3 ? '_lang' : '';
+        return sprintf('%s/%s%s.php', $this->targetDir, $this->file, $suffix);
     }
 
     private function translateMissingItems(): array
@@ -89,14 +92,22 @@ class Translator
 
         // Load source language file
         $sourceLangArray = [];
-        include $sourceFile;
-        $sourceLangArray = $lang;
+        if ($this->version == 3) {
+            include $sourceFile;
+            $sourceLangArray = $lang;
+        } else {
+            $sourceLangArray = include $sourceFile;
+        }
 
         // Load target language file if it exists, otherwise create an empty array
         $targetLangArray = [];
         if (file_exists($targetFile)) {
-            include $targetFile;
-            $targetLangArray = $lang;
+            if ($this->version == 3) {
+                include $targetFile;
+                $targetLangArray = $lang;
+            } else {
+                $targetLangArray = include $targetFile;
+            }
         }
 
         // Flatten both arrays
@@ -143,8 +154,12 @@ class Translator
         // Unflatten the target language array
         $targetLangArray = ArrayTrans::unflattenArray($flatTargetLang);
 
-        // Write updated target language file using modern array syntax
-        $content = "<?php\n\n\$lang = " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
+        // Write updated target language file
+        if ($this->version == 3) {
+            $content = "<?php\n\n\$lang = " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
+        } else {
+            $content = "<?php\n\nreturn " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
+        }
         file_put_contents($targetFile, $content);
 
         return [

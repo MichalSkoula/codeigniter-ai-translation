@@ -17,12 +17,14 @@ Requires PHP 8.1+
 require_once __DIR__ . '/vendor/autoload.php';
 
 $translator = new MichalSkoula\CodeIgniterAITranslation\Translator(
-    'your-api-key',
+    'your-api-key', // Anthropic Claude API key
     'cs', // source language
-    'en' // target language,
+    'en' // target language
     'application/language' // path to your language files
+    3 // CodeIgniter version (3 - default, 4)
 );
 
+// if $file is null, if will translate all files in the directory
 $result = $translator->translate($file);
 
 echo "Translation process completed." . PHP_EOL;
