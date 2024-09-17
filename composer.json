@@ -1,0 +1,29 @@
+{
+    "name": "michalskoula/codeigniter-ai-translation",
+    "description": "This package allows you to translate your CodeIgniter 3/4 language files to any language using Antrhopic Claude REST API.",
+    "type": "library",
+    "require": {
+        "mozex/anthropic-php": "^1.0",
+        "symfony/http-client": "^6.4",
+        "nyholm/psr7": "^1.8",
+        "php": ">=8.1"
+    },
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Michalskoula\\CodeigniterAiTranslation\\": "src/"
+        }
+    },
+    "authors": [
+        {
+            "name": "Michal Skoula",
+            "email": "michal@skoula.cz"
+        }
+    ],
+    "minimum-stability": "stable",
+    "config": {
+        "allow-plugins": {
+            "php-http/discovery": true
+        }
+    }
+}
