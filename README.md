@@ -2,6 +2,14 @@
 
 This package allows you to translate your CodeIgniter 3/4 language files to any language using Antrhopic Claude REST API.
 
+## Installation
+
+```bash
+composer require michalskoula/codeigniter-ai-translation
+```
+
+Requires PHP 8.1+
+
 ## Usage:
 
 ```php

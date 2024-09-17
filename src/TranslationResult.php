@@ -6,23 +6,13 @@ namespace MichalSkoula\CodeIgniterAITranslation;
 
 class TranslationResult
 {
-    private readonly int $processed;
-
-    private readonly int $translated;
-
-    private readonly int $failed;
-
-    private readonly bool $error;
-
-    private readonly string $errorMessage;
-
-    public function __construct(int $processed = 0, int $translated = 0, int $failed = 0, bool $error = false, string $errorMessage = '')
-    {
-        $this->processed = $processed;
-        $this->translated = $translated;
-        $this->failed = $failed;
-        $this->error = $error;
-        $this->errorMessage = $errorMessage;
+    public function __construct(
+        private readonly int $processed = 0,
+        private readonly int $translated = 0,
+        private readonly int $failed = 0,
+        private readonly bool $error = false,
+        private readonly string $errorMessage = ''
+    ) {
     }
 
     public function isError(): bool

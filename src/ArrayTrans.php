@@ -10,13 +10,14 @@ class ArrayTrans
     {
         $result = [];
         foreach ($array as $key => $value) {
-            $newKey = $prefix . ($prefix ? '.' : '') . $key;
+            $newKey = $prefix . ($prefix !== '' ? '.' : '') . $key;
             if (is_array($value)) {
                 $result = array_merge($result, self::flattenArray($value, $newKey));
             } else {
                 $result[$newKey] = $value;
             }
         }
+
         return $result;
     }
 
@@ -33,10 +34,12 @@ class ArrayTrans
                     if (! isset($current[$k]) || ! is_array($current[$k])) {
                         $current[$k] = [];
                     }
+
                     $current = &$current[$k];
                 }
             }
         }
+
         return $result;
     }
 
@@ -50,13 +53,16 @@ class ArrayTrans
             } else {
                 $output .= $key . ' => ';
             }
+
             if (is_array($value)) {
                 $output .= self::arrayToString($value, $indentLevel + 1);
             } else {
                 $output .= "'" . addslashes((string) $value) . "'";
             }
+
             $output .= ",\n";
         }
+
         $output .= str_repeat('    ', $indentLevel - 1) . ']';
         return $output;
     }

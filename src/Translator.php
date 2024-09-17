@@ -10,11 +10,7 @@ use Anthropic\Exceptions\ErrorException;
 
 class Translator
 {
-    private Client $client;
-
-    private string $sourceLang;
-
-    private string $targetLang;
+    private readonly Client $client;
 
     private string $model = 'claude-3-5-sonnet-20240620';
 
@@ -22,13 +18,11 @@ class Translator
 
     public function __construct(
         string $apiKey,
-        string $sourceLang,
-        string $targetLang,
+        private readonly string $sourceLang,
+        private readonly string $targetLang,
         string $dir
     ) {
         $this->client = Anthropic::client($apiKey);
-        $this->sourceLang = $sourceLang;
-        $this->targetLang = $targetLang;
         $this->sourceDir = $dir . '/' . $sourceLang;
         $this->targetDir = $dir . '/' . $targetLang;
     }
@@ -49,7 +43,7 @@ class Translator
 
         // Process files
         try {
-            if ($file) {
+            if ($file !== null && $file !== '') {
                 // Translate a specific file
                 $result = $this->translateMissingItems();
                 $processed = 1;
@@ -57,17 +51,17 @@ class Translator
                 $failed += $result['failed'];
             } else {
                 // Process all PHP files in the source directory
-                foreach (glob("{$this->sourceDir}/*.php") as $sourceFile) {
+                foreach (glob(sprintf('%s/*.php', $this->sourceDir)) as $sourceFile) {
                     $filename = basename($sourceFile);
-                    $targetFile = "{$this->targetDir}/{$filename}";
+                    $targetFile = sprintf('%s/%s', $this->targetDir, $filename);
                     $result = $this->translateMissingItems();
-                    $processed++;
+                    ++$processed;
                     $translated += $result['translated'];
                     $failed += $result['failed'];
                 }
             }
-        } catch (\Exception $e) {
-            return new TranslationResult(error: true, errorMessage: $e->getMessage());
+        } catch (\Exception $exception) {
+            return new TranslationResult(error: true, errorMessage: $exception->getMessage());
         }
 
         return new TranslationResult($processed, $translated, $failed);
@@ -75,12 +69,12 @@ class Translator
 
     private function getSourceFile(): string
     {
-        return "{$this->sourceDir}/{$this->file}_lang.php";
+        return sprintf('%s/%s_lang.php', $this->sourceDir, $this->file);
     }
 
     private function getTargetFile(): string
     {
-        return "{$this->targetDir}/{$this->file}_lang.php";
+        return sprintf('%s/%s_lang.php', $this->targetDir, $this->file);
     }
 
     private function translateMissingItems(): array
@@ -125,7 +119,7 @@ class Translator
         foreach ($missingItems as $key => $value) {
             try {
                 // Some hardcore AI prompt engeeniring is happening here
-                $prompt = 'Translate the following "' . $this->sourceLang . '" language line from e-shop system to "' . $this->targetLang . "\" language. Return only translated text please: {$value}";
+                $prompt = 'Translate the following "' . $this->sourceLang . '" language line from e-shop system to "' . $this->targetLang . sprintf('" language. Return only translated text please: %s', $value);
 
                 $response = $this->client->messages()->create([
                     'model' => $this->model,
@@ -139,9 +133,9 @@ class Translator
                 ]);
 
                 $flatTargetLang[$key] = trim($response->content[0]->text);
-                $translated++;
+                ++$translated;
             } catch (ErrorException) {
-                $failed++;
+                ++$failed;
                 continue;
             }
         }
