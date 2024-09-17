@@ -1,6 +1,6 @@
 # codeigniter-ai-translation
 
-This package allows you to translate your CodeIgniter 3/4 language files to any language using Antrhopic Claude REST API.
+This package allows you to translate your CodeIgniter 3/4 language files to any language using Anthropic Claude REST API.
 
 ## Installation
 
