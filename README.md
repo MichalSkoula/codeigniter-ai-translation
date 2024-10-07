@@ -47,7 +47,7 @@ if ($result->isError()) {
 
 ## Links
 
-Homepage: https://skoula.cz
+Homepage: https://skoula.cz/blog/2024/10/how-to-translate-codeigniter-3/4-language-files-with-ai/
 
 <a href="https://www.buymeacoffee.com/mskoula"><img src="https://www.buymeacoffee.com/assets/img/guidelines/download-assets-sm-1.svg" height="40"></a>
 <a href="https://paypal.me/truehipstercz?country.x=CZ&locale.x=en_US"><img src="https://raw.githubusercontent.com/andreostrovsky/donate-with-paypal/master/blue.svg" height="40"></a>
