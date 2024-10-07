@@ -1,6 +1,8 @@
 # codeigniter-ai-translation
 
-This package allows you to translate your CodeIgniter 3/4 language files to any language using Anthropic Claude REST API.
+Translate your CodeIgniter 3/4 language files into any language using the Anthropic Claude REST API.
+
+It will automatically add missing translations (array elements), so you can run it periodically to update your language files. Multi-dimensional arrays are also supported.
 
 ## Installation
 
@@ -17,11 +19,11 @@ Requires PHP 8.1+
 require_once __DIR__ . '/vendor/autoload.php';
 
 $translator = new MichalSkoula\CodeIgniterAITranslation\Translator(
-    'your-api-key', // Anthropic Claude API key
-    'cs', // source language
-    'en' // target language
-    'application/language' // path to your language files
-    3 // CodeIgniter version (3 - default, 4)
+    'your-api-key',           // Anthropic Claude API key
+    'cs',                     // source language (need to match you directory name)
+    'en',                     // target language (need to match you directory name; will be created automatically)
+    'application/language',   // path to your language files
+    3                         // CodeIgniter version (3 - default, 4)
 );
 
 // if $file is null, if will translate all files in the directory
