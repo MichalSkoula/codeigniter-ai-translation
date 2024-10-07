@@ -14,7 +14,7 @@ class Translator
 
     private string $model = 'claude-3-5-sonnet-20240620';
 
-    private ?string $file;
+    private ?string $file = null;
 
     /**
      * Should contain three %s placeholders:
@@ -23,6 +23,11 @@ class Translator
      * third argument = text to translate
      */
     private string $prompt = 'Translate the following %s language line to %s language. Return only translated text please: %s';
+
+    /**
+     * Wait time in milliseconds between requests to comply with your API rate limit https://console.anthropic.com/settings/limits
+     */
+    private int $sleepMs = 300;
 
     public function __construct(
         string $apiKey,
@@ -82,18 +87,24 @@ class Translator
         if (substr_count($prompt, '%s') !== 3) {
             throw new \InvalidArgumentException('Prompt must contain three %s placeholders (source lang, target lang, text)');
         }
+        
         $this->prompt = $prompt;
+    }
+
+    public function setSleepMs(int $sleepMs): void
+    {
+        $this->sleepMs = $sleepMs;
     }
 
     private function getSourceFile(): string
     {
-        $suffix = $this->version == 3 ? '_lang' : '';
+        $suffix = $this->version === 3 ? '_lang' : '';
         return sprintf('%s/%s%s.php', $this->sourceDir, $this->file, $suffix);
     }
 
     private function getTargetFile(): string
     {
-        $suffix = $this->version == 3 ? '_lang' : '';
+        $suffix = $this->version === 3 ? '_lang' : '';
         return sprintf('%s/%s%s.php', $this->targetDir, $this->file, $suffix);
     }
 
@@ -109,7 +120,7 @@ class Translator
 
         // Load source language file
         $sourceLangArray = [];
-        if ($this->version == 3) {
+        if ($this->version === 3) {
             include $sourceFile;
             $sourceLangArray = $lang;
         } else {
@@ -119,7 +130,7 @@ class Translator
         // Load target language file if it exists, otherwise create an empty array
         $targetLangArray = [];
         if (file_exists($targetFile)) {
-            if ($this->version == 3) {
+            if ($this->version === 3) {
                 include $targetFile;
                 $targetLangArray = $lang;
             } else {
@@ -145,6 +156,10 @@ class Translator
 
         // Translate missing items
         foreach ($missingItems as $key => $value) {
+            // Sleep to comply with API rate limit
+            usleep($this->sleepMs * 1000);
+
+            // Try to translate the item
             try {
                 $prompt = sprintf($this->prompt, $this->sourceLang, $this->targetLang, $value);
 
@@ -161,7 +176,8 @@ class Translator
 
                 $flatTargetLang[$key] = trim($response->content[0]->text);
                 ++$translated;
-            } catch (ErrorException) {
+            } catch (ErrorException $e) {
+                echo 'Failed to translate: ' . $value . ', exception' . $e->getMessage() . PHP_EOL;
                 ++$failed;
                 continue;
             }
@@ -171,11 +187,12 @@ class Translator
         $targetLangArray = ArrayTrans::unflattenArray($flatTargetLang);
 
         // Write updated target language file
-        if ($this->version == 3) {
+        if ($this->version === 3) {
             $content = "<?php\n\n\$lang = " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
         } else {
             $content = "<?php\n\nreturn " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
         }
+        
         file_put_contents($targetFile, $content);
 
         return [

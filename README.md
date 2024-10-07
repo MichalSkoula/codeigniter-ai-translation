@@ -38,6 +38,13 @@ if ($result->isError()) {
 }
 ```
 
+## Development
+
+```
+./vendor/bin/rector
+./vendor/bin/ecs --fix
+```
+
 ## Links
 
 Homepage: https://skoula.cz
