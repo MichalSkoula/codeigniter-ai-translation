@@ -49,21 +49,26 @@ class ArrayTrans
         foreach ($array as $key => $value) {
             $output .= str_repeat('    ', $indentLevel);
             if (is_string($key)) {
-                $output .= "'" . addslashes($key) . "' => ";
+                $output .= self::formatString($key) . ' => ';
             } else {
                 $output .= $key . ' => ';
             }
-
             if (is_array($value)) {
                 $output .= self::arrayToString($value, $indentLevel + 1);
             } else {
-                $output .= "'" . addslashes((string) $value) . "'";
+                $output .= self::formatString((string) $value);
             }
-
             $output .= ",\n";
         }
-
         $output .= str_repeat('    ', $indentLevel - 1) . ']';
         return $output;
+    }
+
+    private static function formatString(string $value): string
+    {
+        if (str_contains($value, "'")) {
+            return '"' . str_replace('"', '\\"', $value) . '"';
+        }
+        return "'" . $value . "'";
     }
 }
