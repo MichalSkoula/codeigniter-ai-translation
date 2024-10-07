@@ -87,7 +87,6 @@ class Translator
         if (substr_count($prompt, '%s') !== 3) {
             throw new \InvalidArgumentException('Prompt must contain three %s placeholders (source lang, target lang, text)');
         }
-        
         $this->prompt = $prompt;
     }
 
@@ -176,8 +175,7 @@ class Translator
 
                 $flatTargetLang[$key] = trim($response->content[0]->text);
                 ++$translated;
-            } catch (ErrorException $e) {
-                echo 'Failed to translate: ' . $value . ', exception' . $e->getMessage() . PHP_EOL;
+            } catch (ErrorException) {
                 ++$failed;
                 continue;
             }
@@ -192,7 +190,6 @@ class Translator
         } else {
             $content = "<?php\n\nreturn " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
         }
-        
         file_put_contents($targetFile, $content);
 
         return [
