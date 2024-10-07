@@ -16,6 +16,14 @@ class Translator
 
     private ?string $file;
 
+    /**
+     * Should contain three %s placeholders:
+     * first argument = source language
+     * second argument = target language
+     * third argument = text to translate
+     */
+    private string $prompt = 'Translate the following %s language line to %s language. Return only translated text please: %s';
+
     public function __construct(
         string $apiKey,
         private readonly string $sourceLang,
@@ -66,6 +74,15 @@ class Translator
         }
 
         return new TranslationResult($processed, $translated, $failed);
+    }
+
+    public function setPrompt(string $prompt): void
+    {
+        // check if text contains three %s placeholders
+        if (substr_count($prompt, '%s') !== 3) {
+            throw new \InvalidArgumentException('Prompt must contain three %s placeholders (source lang, target lang, text)');
+        }
+        $this->prompt = $prompt;
     }
 
     private function getSourceFile(): string
@@ -129,8 +146,7 @@ class Translator
         // Translate missing items
         foreach ($missingItems as $key => $value) {
             try {
-                // Some hardcore AI prompt engeeniring is happening here
-                $prompt = 'Translate the following "' . $this->sourceLang . '" language line from e-shop system to "' . $this->targetLang . sprintf('" language. Return only translated text please: %s', $value);
+                $prompt = sprintf($this->prompt, $this->sourceLang, $this->targetLang, $value);
 
                 $response = $this->client->messages()->create([
                     'model' => $this->model,
