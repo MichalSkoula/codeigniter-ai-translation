@@ -12,8 +12,6 @@ class Translator
 {
     private readonly Client $client;
 
-    private string $model = 'claude-3-5-sonnet-20240620';
-
     private ?string $file = null;
 
     /**
@@ -35,6 +33,7 @@ class Translator
         private readonly string $targetLang,
         string $dir,
         private readonly int $version = 3,
+        private readonly string $model = 'claude-sonnet-4-20250514'
     ) {
         $this->client = Anthropic::client($apiKey);
         $this->sourceDir = $dir . '/' . $sourceLang;
