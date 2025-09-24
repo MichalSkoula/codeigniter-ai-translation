@@ -119,6 +119,7 @@ class Translator
         // Load source language file
         $sourceLangArray = [];
         if ($this->version === 3) {
+            $lang = []; // Reset $lang variable before including source file
             include $sourceFile;
             $sourceLangArray = $lang;
         } else {
@@ -129,6 +130,7 @@ class Translator
         $targetLangArray = [];
         if (file_exists($targetFile)) {
             if ($this->version === 3) {
+                $lang = []; // Reset $lang variable before including target file
                 include $targetFile;
                 $targetLangArray = $lang;
             } else {
