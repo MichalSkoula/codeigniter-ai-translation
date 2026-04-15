@@ -20,12 +20,32 @@ class Translator
      * second argument = target language
      * third argument = text to translate
      */
-    private string $prompt = 'Translate the following %s language line to %s language. Return only translated text please: %s';
+    private string $prompt = 'Translate the following %s language line to %s language. Keep placeholders, HTML tags, escaped characters and line breaks unchanged. Text to translate: %s';
+
+    /**
+     * Strict output contract appended to each prompt.
+     */
+    private string $strictOutputFormatPrompt = 'Return exactly one XML block in this format: <translation>...</translation>. No other text.';
 
     /**
      * Wait time in milliseconds between requests to comply with your API rate limit https://console.anthropic.com/settings/limits
      */
     private int $sleepMs = 300;
+
+    /**
+     * Sanitize model output before storing to language files.
+     */
+    private bool $sanitizeResponseOutput = true;
+
+    /**
+     * Append strict output format instruction to each prompt.
+     */
+    private bool $useStrictOutputFormatPrompt = true;
+
+    /**
+     * Optional model temperature, null keeps provider default.
+     */
+    private ?float $temperature = 0;
 
     public function __construct(
         string $apiKey,
@@ -33,7 +53,7 @@ class Translator
         private readonly string $targetLang,
         string $dir,
         private readonly int $version = 3,
-        private readonly string $model = 'claude-sonnet-4-20250514'
+        private readonly string $model = 'claude-sonnet-4-6'
     ) {
         $this->client = Anthropic::client($apiKey);
         $this->sourceDir = $dir . '/' . $sourceLang;
@@ -92,6 +112,30 @@ class Translator
     public function setSleepMs(int $sleepMs): void
     {
         $this->sleepMs = $sleepMs;
+    }
+
+    public function setSanitizeResponseOutput(bool $sanitizeResponseOutput): void
+    {
+        $this->sanitizeResponseOutput = $sanitizeResponseOutput;
+    }
+
+    public function setTemperature(?float $temperature): void
+    {
+        if ($temperature !== null && ($temperature < 0 || $temperature > 1)) {
+            throw new \InvalidArgumentException('Temperature must be between 0 and 1.');
+        }
+
+        $this->temperature = $temperature;
+    }
+
+    public function setUseStrictOutputFormatPrompt(bool $useStrictOutputFormatPrompt): void
+    {
+        $this->useStrictOutputFormatPrompt = $useStrictOutputFormatPrompt;
+    }
+
+    public function setStrictOutputFormatPrompt(string $strictOutputFormatPrompt): void
+    {
+        $this->strictOutputFormatPrompt = trim($strictOutputFormatPrompt);
     }
 
     private function getSourceFile(): string
@@ -162,8 +206,11 @@ class Translator
             // Try to translate the item
             try {
                 $prompt = sprintf($this->prompt, $this->sourceLang, $this->targetLang, $value);
+                if ($this->useStrictOutputFormatPrompt && $this->strictOutputFormatPrompt !== '') {
+                    $prompt .= ' ' . $this->strictOutputFormatPrompt;
+                }
 
-                $response = $this->client->messages()->create([
+                $requestData = [
                     'model' => $this->model,
                     'max_tokens' => 1024,
                     'messages' => [
@@ -172,9 +219,27 @@ class Translator
                             'content' => $prompt,
                         ],
                     ],
-                ]);
+                ];
 
-                $flatTargetLang[$key] = trim($response->content[0]->text);
+                if ($this->temperature !== null) {
+                    $requestData['temperature'] = $this->temperature;
+                }
+
+                $response = $this->client->messages()->create($requestData);
+
+                $translation = (string) ($response->content[0]->text ?? '');
+                if ($this->sanitizeResponseOutput) {
+                    $translation = $this->_sanitizeResponseText($translation);
+                } else {
+                    $translation = trim($translation);
+                }
+
+                if ($translation === '') {
+                    ++$failed;
+                    continue;
+                }
+
+                $flatTargetLang[$key] = $translation;
                 ++$translated;
             } catch (ErrorException) {
                 ++$failed;
@@ -197,5 +262,26 @@ class Translator
             'translated' => $translated,
             'failed' => $failed,
         ];
+    }
+
+    private function _sanitizeResponseText(string $responseText): string
+    {
+        $responseText = trim($responseText);
+        if ($responseText === '') {
+            return '';
+        }
+
+        if (preg_match('/<translation>\\s*(.*?)\\s*<\\/translation>/is', $responseText, $match) === 1) {
+            $responseText = trim($match[1]);
+        }
+
+        if (preg_match('/^```[a-zA-Z0-9_-]*\\s*(.*?)\\s*```$/s', $responseText, $match) === 1) {
+            $responseText = trim($match[1]);
+        }
+
+        $responseText = preg_replace('/^(?:translation|translated text|result)\\s*:\\s*/i', '', $responseText) ?? $responseText;
+        $responseText = preg_replace('/<\\/?translation>/i', '', $responseText) ?? $responseText;
+
+        return trim($responseText);
     }
 }
