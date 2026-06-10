@@ -182,6 +182,10 @@ class Translator
             }
         }
 
+        // Numeric list keys are order-based. If a source list length changes,
+        // previously translated entries can shift and produce duplicated tail lines.
+        $targetLangArray = $this->_normalizeImplicitListBranches($sourceLangArray, $targetLangArray);
+
         // Flatten both arrays
         $flatSourceLang = ArrayTrans::flattenArray($sourceLangArray);
         $flatTargetLang = ArrayTrans::flattenArray($targetLangArray);
@@ -190,7 +194,7 @@ class Translator
 
         // Find missing items
         foreach ($flatSourceLang as $key => $value) {
-            if (! isset($flatTargetLang[$key])) {
+            if (! array_key_exists($key, $flatTargetLang)) {
                 $missingItems[$key] = $value;
             }
         }
@@ -283,5 +287,24 @@ class Translator
         $responseText = preg_replace('/<\\/?translation>/i', '', $responseText) ?? $responseText;
 
         return trim($responseText);
+    }
+
+    private function _normalizeImplicitListBranches(array $sourceArray, array $targetArray): array
+    {
+        foreach ($sourceArray as $key => $sourceValue) {
+            if (! is_array($sourceValue) || ! array_key_exists($key, $targetArray) || ! is_array($targetArray[$key])) {
+                continue;
+            }
+
+            $targetValue = $targetArray[$key];
+            if (array_is_list($sourceValue) && (! array_is_list($targetValue) || count($sourceValue) !== count($targetValue))) {
+                unset($targetArray[$key]);
+                continue;
+            }
+
+            $targetArray[$key] = $this->_normalizeImplicitListBranches($sourceValue, $targetValue);
+        }
+
+        return $targetArray;
     }
 }
