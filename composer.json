@@ -8,8 +8,8 @@
         "php": ">=8.1"
     },
     "require-dev": {
-        "symplify/easy-coding-standard": "^11.5",
-        "rector/rector": "^0.17.6"
+        "symplify/easy-coding-standard": "^13.2",
+        "rector/rector": "^2.5"
     },
     "license": "MIT",
     "autoload": {

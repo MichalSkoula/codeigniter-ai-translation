@@ -85,6 +85,7 @@ class ArrayTrans
         if (str_contains($value, "'")) {
             return '"' . str_replace('"', '\\"', $value) . '"';
         }
+
         return "'" . $value . "'";
     }
 

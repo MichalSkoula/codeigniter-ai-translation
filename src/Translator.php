@@ -9,8 +9,6 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class Translator
 {
-    private readonly string $apiKey;
-
     private readonly HttpClientInterface $httpClient;
 
     private ?string $file = null;
@@ -48,22 +46,18 @@ class Translator
      */
     private ?float $temperature = 0;
 
-    private string $model = 'claude-haiku-4-5';
-
     private Provider $provider = Provider::CLAUDE;
 
     public function __construct(
         Provider|string $provider,
-        string $model,
-        string $apiKey,
+        private string $model,
+        private readonly string $apiKey,
         private readonly string $sourceLang,
         private readonly string $targetLang,
         string $dir,
         private readonly int $version = 3
     ) {
-        $this->apiKey = $apiKey;
         $this->httpClient = HttpClient::create();
-        $this->model = $model;
         $this->provider = $provider instanceof Provider ? $provider : Provider::fromString($provider);
 
         $this->sourceDir = $dir . '/' . $sourceLang;
@@ -119,6 +113,7 @@ class Translator
         if (substr_count($prompt, '%s') !== 3) {
             throw new \InvalidArgumentException('Prompt must contain three %s placeholders (source lang, target lang, text)');
         }
+
         $this->prompt = $prompt;
     }
 
@@ -270,6 +265,7 @@ class Translator
         } else {
             $content = "<?php\n\nreturn " . ArrayTrans::arrayToString($targetLangArray) . ";\n";
         }
+
         file_put_contents($targetFile, $content);
 
         return [
@@ -327,7 +323,7 @@ class Translator
             }
         }
 
-        return trim(implode($textParts));
+        return trim(implode('', $textParts));
     }
 
     private function requestOpenAITranslation(string $prompt): string
@@ -363,12 +359,11 @@ class Translator
 
         $content = $data['choices'][0]['message']['content'] ?? '';
         if (is_array($content)) {
-            return trim(implode(array_map(static fn (array $part): string => $part['text'] ?? '', $content)));
+            return trim(implode('', array_map(static fn (array $part): string => $part['text'] ?? '', $content)));
         }
 
         return trim((string) $content);
     }
-
 
     private function _sanitizeResponseText(string $responseText): string
     {
@@ -399,6 +394,7 @@ class Translator
             if (isset($data['message']) && is_string($data['message']) && $data['message'] !== '') {
                 return $default . ' ' . $data['message'];
             }
+
             return $default;
         }
 
@@ -416,7 +412,7 @@ class Translator
             $message .= ' (' . implode(', ', $details) . ')';
         }
 
-        return trim($message);
+        return trim((string) $message);
     }
 
     private function _normalizeImplicitListBranches(array $sourceArray, array $targetArray): array
