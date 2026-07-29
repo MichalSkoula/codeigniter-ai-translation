@@ -55,5 +55,5 @@ if ($result->isError()) {
 
 ## Links
 
-https://github.com/MichalSkoula/codeigniter-ai-translation
-https://skoula.cz/blog/2024/10/how-to-translate-codeigniter-3/4-language-files-with-ai/
+* https://github.com/MichalSkoula/codeigniter-ai-translation
+* https://skoula.cz/blog/2024/10/how-to-translate-codeigniter-3/4-language-files-with-ai/
