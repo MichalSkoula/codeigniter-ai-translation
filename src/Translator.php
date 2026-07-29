@@ -4,13 +4,14 @@ declare(strict_types=1);
 
 namespace MichalSkoula\CodeIgniterAITranslation;
 
-use Anthropic;
-use Anthropic\Client;
-use Anthropic\Exceptions\ErrorException;
+use Symfony\Component\HttpClient\HttpClient;
+use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class Translator
 {
-    private readonly Client $client;
+    private readonly string $apiKey;
+
+    private readonly HttpClientInterface $httpClient;
 
     private ?string $file = null;
 
@@ -28,7 +29,7 @@ class Translator
     private string $strictOutputFormatPrompt = 'Return exactly one XML block in this format: <translation>...</translation>. No other text.';
 
     /**
-     * Wait time in milliseconds between requests to comply with your API rate limit https://console.anthropic.com/settings/limits
+     * Wait time in milliseconds between requests to comply with your API rate limit
      */
     private int $sleepMs = 300;
 
@@ -47,15 +48,24 @@ class Translator
      */
     private ?float $temperature = 0;
 
+    private string $model = 'claude-haiku-4-5';
+
+    private Provider $provider = Provider::CLAUDE;
+
     public function __construct(
+        Provider|string $provider,
+        string $model,
         string $apiKey,
         private readonly string $sourceLang,
         private readonly string $targetLang,
         string $dir,
-        private readonly int $version = 3,
-        private readonly string $model = 'claude-sonnet-4-6'
+        private readonly int $version = 3
     ) {
-        $this->client = Anthropic::client($apiKey);
+        $this->apiKey = $apiKey;
+        $this->httpClient = HttpClient::create();
+        $this->model = $model;
+        $this->provider = $provider instanceof Provider ? $provider : Provider::fromString($provider);
+
         $this->sourceDir = $dir . '/' . $sourceLang;
         $this->targetDir = $dir . '/' . $targetLang;
     }
@@ -73,6 +83,7 @@ class Translator
         $processed = 0;
         $translated = 0;
         $failed = 0;
+        $errors = [];
 
         // Process files
         try {
@@ -82,6 +93,7 @@ class Translator
                 $processed = 1;
                 $translated += $result['translated'];
                 $failed += $result['failed'];
+                $errors = array_merge($errors, $result['errors']);
             } else {
                 // Process all PHP files in the source directory
                 foreach (glob(sprintf('%s/*.php', $this->sourceDir)) as $sourceFile) {
@@ -91,13 +103,14 @@ class Translator
                     ++$processed;
                     $translated += $result['translated'];
                     $failed += $result['failed'];
+                    $errors = array_merge($errors, $result['errors']);
                 }
             }
         } catch (\Exception $exception) {
-            return new TranslationResult(error: true, errorMessage: $exception->getMessage());
+            return new TranslationResult(error: true, errorMessage: $exception->getMessage(), errors: $errors);
         }
 
-        return new TranslationResult($processed, $translated, $failed);
+        return new TranslationResult($processed, $translated, $failed, false, '', $errors);
     }
 
     public function setPrompt(string $prompt): void
@@ -112,6 +125,16 @@ class Translator
     public function setSleepMs(int $sleepMs): void
     {
         $this->sleepMs = $sleepMs;
+    }
+
+    public function setProvider(Provider|string $provider): void
+    {
+        $this->provider = $provider instanceof Provider ? $provider : Provider::fromString($provider);
+    }
+
+    public function setModel(string $model): void
+    {
+        $this->model = $model;
     }
 
     public function setSanitizeResponseOutput(bool $sanitizeResponseOutput): void
@@ -201,6 +224,7 @@ class Translator
 
         $translated = 0;
         $failed = 0;
+        $errors = [];
 
         // Translate missing items
         foreach ($missingItems as $key => $value) {
@@ -214,24 +238,8 @@ class Translator
                     $prompt .= ' ' . $this->strictOutputFormatPrompt;
                 }
 
-                $requestData = [
-                    'model' => $this->model,
-                    'max_tokens' => 1024,
-                    'messages' => [
-                        [
-                            'role' => 'user',
-                            'content' => $prompt,
-                        ],
-                    ],
-                ];
+                $translation = $this->requestTranslation($prompt);
 
-                if ($this->temperature !== null) {
-                    $requestData['temperature'] = $this->temperature;
-                }
-
-                $response = $this->client->messages()->create($requestData);
-
-                $translation = (string) ($response->content[0]->text ?? '');
                 if ($this->sanitizeResponseOutput) {
                     $translation = $this->_sanitizeResponseText($translation);
                 } else {
@@ -240,13 +248,15 @@ class Translator
 
                 if ($translation === '') {
                     ++$failed;
+                    $errors[] = sprintf('Empty translation for file %s, key %s', $this->file ?? 'unknown', $key);
                     continue;
                 }
 
                 $flatTargetLang[$key] = $translation;
                 ++$translated;
-            } catch (ErrorException) {
+            } catch (\Throwable $exception) {
                 ++$failed;
+                $errors[] = sprintf('Error in file %s, key %s: %s', $this->file ?? 'unknown', $key, $exception->getMessage());
                 continue;
             }
         }
@@ -265,8 +275,100 @@ class Translator
         return [
             'translated' => $translated,
             'failed' => $failed,
+            'errors' => $errors,
         ];
     }
+
+    private function requestTranslation(string $prompt): string
+    {
+        if ($this->provider === Provider::OPENAI) {
+            return $this->requestOpenAITranslation($prompt);
+        }
+
+        return $this->requestClaudeTranslation($prompt);
+    }
+
+    private function requestClaudeTranslation(string $prompt): string
+    {
+        $requestData = [
+            'model' => $this->model,
+            'max_tokens' => 1024,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+            ],
+        ];
+
+        if ($this->temperature !== null) {
+            $requestData['temperature'] = $this->temperature;
+        }
+
+        $response = $this->httpClient->request('POST', 'https://api.anthropic.com/v1/messages', [
+            'headers' => [
+                'x-api-key' => $this->apiKey,
+                'anthropic-version' => '2023-06-01',
+                'content-type' => 'application/json',
+            ],
+            'json' => $requestData,
+        ]);
+
+        $body = $response->getContent(false);
+        $data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        if ($response->getStatusCode() >= 400) {
+            throw new \RuntimeException($this->buildApiErrorMessage($data, $response->getStatusCode()));
+        }
+
+        $textParts = [];
+        foreach ($data['content'] ?? [] as $contentItem) {
+            if (($contentItem['type'] ?? '') === 'text') {
+                $textParts[] = (string) ($contentItem['text'] ?? '');
+            }
+        }
+
+        return trim(implode($textParts));
+    }
+
+    private function requestOpenAITranslation(string $prompt): string
+    {
+        $requestData = [
+            'model' => $this->model,
+            'max_completion_tokens' => 1024,
+            'messages' => [
+                [
+                    'role' => 'user',
+                    'content' => $prompt,
+                ],
+            ],
+        ];
+
+        if ($this->temperature !== null) {
+            $requestData['temperature'] = $this->temperature;
+        }
+
+        $response = $this->httpClient->request('POST', 'https://api.openai.com/v1/chat/completions', [
+            'headers' => [
+                'Authorization' => 'Bearer ' . $this->apiKey,
+                'Content-Type' => 'application/json',
+            ],
+            'json' => $requestData,
+        ]);
+
+        $body = $response->getContent(false);
+        $data = json_decode($body, true, 512, JSON_THROW_ON_ERROR);
+        if ($response->getStatusCode() >= 400) {
+            throw new \RuntimeException($this->buildApiErrorMessage($data, $response->getStatusCode()));
+        }
+
+        $content = $data['choices'][0]['message']['content'] ?? '';
+        if (is_array($content)) {
+            return trim(implode(array_map(static fn (array $part): string => $part['text'] ?? '', $content)));
+        }
+
+        return trim((string) $content);
+    }
+
 
     private function _sanitizeResponseText(string $responseText): string
     {
@@ -287,6 +389,34 @@ class Translator
         $responseText = preg_replace('/<\\/?translation>/i', '', $responseText) ?? $responseText;
 
         return trim($responseText);
+    }
+
+    private function buildApiErrorMessage(array $data, int $statusCode): string
+    {
+        $default = 'HTTP/' . $statusCode . ' returned for API request.';
+
+        if (! isset($data['error']) || ! is_array($data['error'])) {
+            if (isset($data['message']) && is_string($data['message']) && $data['message'] !== '') {
+                return $default . ' ' . $data['message'];
+            }
+            return $default;
+        }
+
+        $error = $data['error'];
+        $message = $error['message'] ?? $default;
+        $details = [];
+
+        foreach (['type', 'param', 'code'] as $field) {
+            if (isset($error[$field]) && (string) $error[$field] !== '') {
+                $details[] = $field . ': ' . $error[$field];
+            }
+        }
+
+        if ($details !== []) {
+            $message .= ' (' . implode(', ', $details) . ')';
+        }
+
+        return trim($message);
     }
 
     private function _normalizeImplicitListBranches(array $sourceArray, array $targetArray): array
